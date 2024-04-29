@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <title>Add a 3D model with three.js</title>
+
+  <meta property="og:description" content="Use a custom style layer with three.js to add a 3D model to the map." />
+
+  <meta charset='utf-8'>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@4.1.3/dist/maplibre-gl.css' />
+
+  <script src='https://unpkg.com/maplibre-gl@4.1.3/dist/maplibre-gl.js'></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body,
+    #map {
+      height: 100%;
+    }
+
+    .animation-buttons {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+    }
+
+    .animation-buttons button {
+      margin-right: 5px;
+    }
+
+    .coordinate-input {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1;
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"
+    integrity="sha512-WoO4Ih0CDOSLYafy22wZD/mcJ7k0ESLqtQsFa6zFKnEUrbtuGU+GkLtVhgt93xa2qewG5gKEC6CWlN8OaCTSVg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.3/gsap.min.js"></script>
+  <script src="https://unpkg.com/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+
+  <div id="map"></div>
+
+  <div class="animation-buttons">
+    <button onclick="playAnimation(0,6)">Animation 1</button>
+    <button onclick="playAnimation(1,6)">Animation 2</button>
+    <button onclick="playAnimation(2,6)">Animation 3</button>
+    <button onclick="playAnimation(3,6)">Animation 4</button>
+  </div>
+
+
+  <div class="coordinate-input">
+    <h2>Enter Coordinates</h2>
+    <textarea style="resize: none;" id="coordinatesInput" rows="5" cols="30" placeholder="Enter x,y values"></textarea>
+    <br>
+    <button onclick="updateCoordinates()">Update Coordinates</button>
+  </div>
+  <script>
+
+    this.gsap = gsap
+    // console.log(gsap)
+    gsap.registerPlugin({
+      name: "precise",
+      init(target, vars, tween, index, targets) {
+        let data = this,
+          p, value;
+        data.t = target;
+        for (p in vars) {
+          value = vars[p];
+          typeof (value) === "function" && (value = value.call(tween, index, target, targets));
+          data.pt = { n: data.pt, p: p, s: target[p], c: value - target[p] };
+          data._props.push(p);
+        }
+      },
+      render(ratio, data) {
+        let pt = data.pt;
+        while (pt) {
+          data.t[pt.p] = pt.s + pt.c * ratio;
+          pt = pt.n;
+        }
+      }
+    });
+
+
+    const map = (window.map = new maplibregl.Map({
+
+      container: 'map',
+
+      style:
+
+        'https://api.maptiler.com/maps/basic/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+
+      zoom: 18,
+
+      center: [148.9819, -35.3981],
+
+      pitch: 60,
+
+      antialias: true // create the gl context with MSAA antialiasing, so custom layers are antialiased
+
+    }));
+
+    map.on('click', function (e) {
+
+      console.log(e.lngLat);
+
+      let oldModelPosAsMercatorCoordinate = ([modelTransform.translateX, modelTransform.translateY]);
+      let newModelPosAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat([e.lngLat.lng, e.lngLat.lat], 0);
+
+      let angleInRadians = Math.atan2(newModelPosAsMercatorCoordinate.y - oldModelPosAsMercatorCoordinate[1], newModelPosAsMercatorCoordinate.x - oldModelPosAsMercatorCoordinate[0]);
+
+      let angleInDegrees = angleInRadians * (180 / Math.PI);
+
+      angleInDegrees = ((angleInDegrees + 180) % 360) - 180;
+
+
+
+
+
+      gsap.to(modelTransform, {
+        duration: .5,
+        precise: {
+          rotateY: -angleInRadians - 30,
+        }
+      })
+
+      gsap.to(modelTransform, {
+        duration: 3,
+        precise: {
+          // rotateY: angleInRadians1,
+          translateX: newModelPosAsMercatorCoordinate.x,
+          translateY: newModelPosAsMercatorCoordinate.y,
+          translateZ: newModelPosAsMercatorCoordinate.z,
+          // rotateY: angleInDegrees, // Set the y-rotation to the calculated angle
+          // Callback function executed after the animation finishes
+          onComplete: function () {
+            // You can do something here after the animation completes
+            console.log('Animation completed');
+          }
+        }
+      });
+    });
+
+
+
+    // parameters to ensure the model is georeferenced correctly on the map
+
+    const modelOrigin = [148.9819, -35.39847];
+
+    const modelAltitude = 0;
+
+    const modelRotate = [Math.PI / 2, 0, 0];
+
+
+
+    const modelAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat(
+
+      modelOrigin,
+
+      modelAltitude
+
+    );
+
+    console.log(modelAsMercatorCoordinate);
+
+
+
+    // transformation parameters to position, rotate and scale the 3D model onto the map
+
+    const modelTransform = {
+
+      translateX: modelAsMercatorCoordinate.x,
+
+      translateY: modelAsMercatorCoordinate.y,
+
+      translateZ: modelAsMercatorCoordinate.z,
+
+      rotateX: modelRotate[0],
+
+      rotateY: modelRotate[1],
+
+      rotateZ: modelRotate[2],
+
+      /* Since our 3D model is in real world meters, a scale transform needs to be
+
+      * applied since the CustomLayerInterface expects units in MercatorCoordinates.
+
+      */
+
+      scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
+
+    };
+
+
+
+    const THREE = window.THREE;
+    let model;
+    let mixer;
+
+
+    // configuration of the custom layer for a 3D model per the CustomLayerInterface
+
+    const customLayer = {
+
+      id: '3d-model',
+
+      type: 'custom',
+
+      renderingMode: '3d',
+
+      onAdd(map, gl) {
+
+        this.camera = new THREE.Camera();
+
+        this.scene = new THREE.Scene();
+
+
+
+        // create two three.js lights to illuminate the model
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff);
+
+        directionalLight.position.set(0, -70, 100).normalize();
+
+        this.scene.add(directionalLight);
+
+
+
+        const directionalLight2 = new THREE.DirectionalLight(0xffffff);
+
+        directionalLight2.position.set(0, 70, 100).normalize();
+
+        this.scene.add(directionalLight2);
+
+
+
+        // use the three.js GLTF loader to add the 3D model to the three.js scene
+
+        const loader = new THREE.GLTFLoader();
+
+
+        loader.load(
+
+          'guy.glb',
+
+          (gltf) => {
+
+            model = gltf.scene;
+
+
+            this.scene.add(model);
+            mixer = new THREE.AnimationMixer(model);
+            this.animations = gltf.animations;
+
+          }
+
+        );
+
+        this.map = map;
+
+
+
+        // use the MapLibre GL JS map canvas for three.js
+
+        this.renderer = new THREE.WebGLRenderer({
+
+          canvas: map.getCanvas(),
+
+          context: gl,
+
+          antialias: true
+
+        });
+
+
+
+        this.renderer.autoClear = false;
+
+      },
+
+      render(gl, matrix) {
+
+
+
+        const rotationX = new THREE.Matrix4().makeRotationAxis(
+
+          new THREE.Vector3(1, 0, 0),
+
+          modelTransform.rotateX
+
+        );
+
+        const rotationY = new THREE.Matrix4().makeRotationAxis(
+
+          new THREE.Vector3(0, 1, 0),
+
+          modelTransform.rotateY
+
+        );
+
+        const rotationZ = new THREE.Matrix4().makeRotationAxis(
+
+          new THREE.Vector3(0, 0, 1),
+
+          modelTransform.rotateZ
+
+        );
+
+
+
+        const m = new THREE.Matrix4().fromArray(matrix);
+
+        const l = new THREE.Matrix4()
+
+          .makeTranslation(
+
+            modelTransform.translateX,
+
+            modelTransform.translateY,
+
+            modelTransform.translateZ
+
+          )
+
+          .scale(
+
+            new THREE.Vector3(
+
+              modelTransform.scale,
+
+              -modelTransform.scale,
+
+              modelTransform.scale
+
+            )
+
+          )
+
+          .multiply(rotationX)
+
+          .multiply(rotationY)
+
+          .multiply(rotationZ);
+
+
+
+        this.camera.projectionMatrix = m.multiply(l);
+
+        this.renderer.resetState();
+
+        this.renderer.render(this.scene, this.camera);
+
+        this.map.triggerRepaint();
+
+      }
+
+    };
+
+
+
+    const clock = new THREE.Clock();
+
+    const tick = (time) => {
+      // modelTransform.translateX += 0.000000001
+      if (mixer) {
+
+        mixer.update(clock.getDelta());
+
+      }
+
+      if (model) {
+        // model.rotation.y += 0.01;
+        // model.position.y = Math.sin(time / 1000) * 2;
+      }
+
+      // Call tick again on the next frame
+
+      window.requestAnimationFrame(tick);
+
+    };
+
+    tick();
+
+
+
+    function playAnimation(index, crossFadeDuration) {
+      if (mixer && mixer.clipAction && customLayer.animations && customLayer.animations.length > index) {
+        const animation = mixer.clipAction(customLayer.animations[index]);
+        // animation.setLoop(THREE.LoopOnce);
+        animation.clampWhenFinished = true;
+
+        if (animation) {
+          mixer.stopAllAction();
+
+          const currentAction = mixer.existingAction(customLayer.animations[index]);
+          const nextAction = animation;
+
+          if (currentAction !== nextAction) {
+            // Crossfade to the next animation
+            currentAction.crossFadeTo(nextAction, crossFadeDuration, true);
+            nextAction.setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(crossFadeDuration).play();
+          } else {
+            // If the same animation is requested, just play it
+            nextAction.play();
+          }
+        }
+      }
+    }
+
+
+
+
+    map.on('style.load', () => {
+
+      map.addLayer(customLayer);
+
+    });
+
+    const gui = new dat.GUI();
+    gui.hide()
+    gui.add(modelTransform, 'rotateY', -Math.PI, Math.PI).name('Rotation Y (radians)');
+
+    function updateCoordinates() {
+      var input = document.getElementById('coordinatesInput').value;
+      var lines = input.split('\n');
+      var coordinates = [];
+
+      lines.forEach(function (line) {
+        var values = line.trim().split(',');
+        if (values.length === 2) {
+          var x = parseFloat(values[0]);
+          var y = parseFloat(values[1]);
+          if (!isNaN(x) && !isNaN(y)) {
+            coordinates.push({ x: x, y: y });
+          } 3
+        }
+      });
+
+      console.log(coordinates);
+
+      coordinates.forEach(function (coordinate, index) {
+        setTimeout(() => {
+          let positionToGo = maplibregl.MercatorCoordinate.fromLngLat([coordinate.x, coordinate.y], 0);
+
+          // Calculate the angle for rotation around Y-axis
+          let oldModelPosAsMercatorCoordinate = ([modelTransform.translateX, modelTransform.translateY]);
+          let newModelPosAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat([coordinate.x, coordinate.y], 0);
+          let angleInRadians = Math.atan2(newModelPosAsMercatorCoordinate.y - oldModelPosAsMercatorCoordinate[1], newModelPosAsMercatorCoordinate.x - oldModelPosAsMercatorCoordinate[0]);
+          let angleInDegrees = angleInRadians * (180 / Math.PI);
+          angleInDegrees = ((angleInDegrees + 180) % 360) - 180;
+
+          // modelTransform.rotateY = -angleInRadians - 30
+
+          playAnimation(3, 6)
+
+          gsap.to(modelTransform, {
+            duration: .5,
+            precise: {
+              rotateY: -angleInRadians - 30,
+            }
+          })
+
+          gsap.to(modelTransform, {
+            duration: 2,
+            ease: "none",
+            precise: {
+              translateX: positionToGo.x,
+              translateY: positionToGo.y,
+              translateZ: positionToGo.z,
+
+              onComplete: function () {
+                console.log('Animation completed for coordinate at index ' + index);
+              }
+            }
+          });
+        }, index * 2000); // Delay each animation by 2 seconds
+      });
+    }
+
+
+  </script>
+
+</body>
+
+</html>
