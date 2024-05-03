@@ -3,18 +3,17 @@
 <html lang="en">
 
 <head>
-
   <title>Add a 3D model with three.js</title>
 
   <meta property="og:description" content="Use a custom style layer with three.js to add a 3D model to the map." />
 
-  <meta charset='utf-8'>
+  <meta charset="utf-8" />
 
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@4.1.3/dist/maplibre-gl.css' />
+  <link rel="stylesheet" href="./maplibre-gl.css" />
 
-  <script src='https://unpkg.com/maplibre-gl@4.1.3/dist/maplibre-gl.js'></script>
+  <script src="./maplibre-gl.js"></script>
 
   <style>
     body {
@@ -46,47 +45,43 @@
       z-index: 1;
     }
   </style>
-
 </head>
 
 <body>
-
-  <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"
-    integrity="sha512-WoO4Ih0CDOSLYafy22wZD/mcJ7k0ESLqtQsFa6zFKnEUrbtuGU+GkLtVhgt93xa2qewG5gKEC6CWlN8OaCTSVg=="
-    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.3/gsap.min.js"></script>
-  <script src="https://unpkg.com/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="./three.min.js"></script>
+  <script src="dat.gui.min.js"></script>
+  <script src="./gsap.min.js"></script>
+  <script src="./GLTFLoader.js"></script>
 
   <div id="map"></div>
 
   <div class="animation-buttons">
-    <button onclick="playAnimation(0,6)">Animation 1</button>
-    <button onclick="playAnimation(1,6)">Animation 2</button>
-    <button onclick="playAnimation(2,6)">Animation 3</button>
-    <button onclick="playAnimation(3,6)">Animation 4</button>
+    <button onclick="playAnimation('appear',0.1)">Animation 1</button>
+    <button onclick="playAnimation('disappear',0.1)">Animation 2</button>
+    <button onclick="playAnimation('idle',0.5)">Animation 3</button>
+    <button onclick="playAnimation('walk',0.5)">Animation 4</button>
   </div>
-
 
   <div class="coordinate-input">
     <h2>Enter Coordinates</h2>
-    <textarea style="resize: none;" id="coordinatesInput" rows="5" cols="30" placeholder="Enter x,y values"></textarea>
-    <br>
+    <textarea style="resize: none" id="coordinatesInput" rows="5" cols="30" placeholder="Enter x,y values"></textarea>
+    <br />
     <button onclick="updateCoordinates()">Update Coordinates</button>
   </div>
   <script>
-
-    this.gsap = gsap
+    this.gsap = gsap;
     // console.log(gsap)
     gsap.registerPlugin({
       name: "precise",
       init(target, vars, tween, index, targets) {
         let data = this,
-          p, value;
+          p,
+          value;
         data.t = target;
         for (p in vars) {
           value = vars[p];
-          typeof (value) === "function" && (value = value.call(tween, index, target, targets));
+          typeof value === "function" &&
+            (value = value.call(tween, index, target, targets));
           data.pt = { n: data.pt, p: p, s: target[p], c: value - target[p] };
           data._props.push(p);
         }
@@ -97,54 +92,74 @@
           data.t[pt.p] = pt.s + pt.c * ratio;
           pt = pt.n;
         }
-      }
+      },
     });
 
+    const THREE = window.THREE;
+    let model;
+    let mixer;
+    let animationActions = {};
 
     const map = (window.map = new maplibregl.Map({
-
-      container: 'map',
+      container: "map",
 
       style:
+        "https://api.maptiler.com/maps/basic/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL",
 
-        'https://api.maptiler.com/maps/basic/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+      zoom: 21,
 
-      zoom: 18,
-
-      center: [148.9819, -35.3981],
+      center: [148.9819, -35.3985],
 
       pitch: 60,
 
-      antialias: true // create the gl context with MSAA antialiasing, so custom layers are antialiased
-
+      antialias: true, // create the gl context with MSAA antialiasing, so custom layers are antialiased
     }));
 
-    map.on('click', function (e) {
 
-      console.log(e.lngLat);
 
-      let oldModelPosAsMercatorCoordinate = ([modelTransform.translateX, modelTransform.translateY]);
-      let newModelPosAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat([e.lngLat.lng, e.lngLat.lat], 0);
-
-      let angleInRadians = Math.atan2(newModelPosAsMercatorCoordinate.y - oldModelPosAsMercatorCoordinate[1], newModelPosAsMercatorCoordinate.x - oldModelPosAsMercatorCoordinate[0]);
-
-      let angleInDegrees = angleInRadians * (180 / Math.PI);
-
-      angleInDegrees = ((angleInDegrees + 180) % 360) - 180;
+    map.on("click", function (e) {
+      // console.log(e.lngLat);
 
 
 
+      let oldModelPosAsMercatorCoordinate = [
+        modelTransform.translateX,
+        modelTransform.translateY,
+      ];
+      let newModelPosAsMercatorCoordinate =
+        maplibregl.MercatorCoordinate.fromLngLat(
+          [e.lngLat.lng, e.lngLat.lat],
+          0
+        );
 
+      let angleInRadians = Math.atan2(
+        newModelPosAsMercatorCoordinate.y -
+        oldModelPosAsMercatorCoordinate[1],
+        newModelPosAsMercatorCoordinate.x - oldModelPosAsMercatorCoordinate[0]
+      );
 
-      gsap.to(modelTransform, {
-        duration: .5,
+      // if animation is playing dont repeat it
+
+      if (animationActions.current._clip.name === 'Walk') {
+        return
+      }
+
+      playAnimation("appear", 0.1);
+      setTimeout(() => {
+        playAnimation("walk", 0.5);
+      }, 200);
+
+      console.log(angleInRadians);
+      gsap.to(model.rotation, {
+        duration: 0.3,
         precise: {
-          rotateY: -angleInRadians - 30,
-        }
-      })
+          y: -angleInRadians + 1.5,
+        },
+      });
 
       gsap.to(modelTransform, {
         duration: 3,
+        ease: "none",
         precise: {
           // rotateY: angleInRadians1,
           translateX: newModelPosAsMercatorCoordinate.x,
@@ -154,13 +169,18 @@
           // Callback function executed after the animation finishes
           onComplete: function () {
             // You can do something here after the animation completes
-            console.log('Animation completed');
-          }
-        }
+            console.log("Animation completed");
+          },
+        },
       });
+
+      setTimeout(() => {
+        playAnimation("idle", 0.2);
+      }, 3000);
+      setTimeout(() => {
+        playAnimation("disappear", 0.5);
+      }, 4000);
     });
-
-
 
     // parameters to ensure the model is georeferenced correctly on the map
 
@@ -170,24 +190,18 @@
 
     const modelRotate = [Math.PI / 2, 0, 0];
 
+    const modelAsMercatorCoordinate =
+      maplibregl.MercatorCoordinate.fromLngLat(
+        modelOrigin,
 
-
-    const modelAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat(
-
-      modelOrigin,
-
-      modelAltitude
-
-    );
+        modelAltitude
+      );
 
     console.log(modelAsMercatorCoordinate);
-
-
 
     // transformation parameters to position, rotate and scale the 3D model onto the map
 
     const modelTransform = {
-
       translateX: modelAsMercatorCoordinate.x,
 
       translateY: modelAsMercatorCoordinate.y,
@@ -202,38 +216,27 @@
 
       /* Since our 3D model is in real world meters, a scale transform needs to be
 
-      * applied since the CustomLayerInterface expects units in MercatorCoordinates.
+    * applied since the CustomLayerInterface expects units in MercatorCoordinates.
 
-      */
+    */
 
-      scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
-
+      scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits(),
     };
-
-
-
-    const THREE = window.THREE;
-    let model;
-    let mixer;
-
 
     // configuration of the custom layer for a 3D model per the CustomLayerInterface
 
     const customLayer = {
+      id: "3d-model",
 
-      id: '3d-model',
+      type: "custom",
 
-      type: 'custom',
-
-      renderingMode: '3d',
+      renderingMode: "3d",
 
       onAdd(map, gl) {
-
         this.camera = new THREE.Camera();
 
+
         this.scene = new THREE.Scene();
-
-
 
         // create two three.js lights to illuminate the model
 
@@ -243,116 +246,154 @@
 
         this.scene.add(directionalLight);
 
-
-
         const directionalLight2 = new THREE.DirectionalLight(0xffffff);
 
         directionalLight2.position.set(0, 70, 100).normalize();
 
         this.scene.add(directionalLight2);
 
+        const directionalLight3 = new THREE.DirectionalLight(0xffffff, 1.6);
+        directionalLight3.castShadow = true;
 
+        directionalLight3.position.set(3.051, 10.4, -17.02).normalize();
+
+        // directionalLight3.shadow.mapSize.width = 2048; // Adjust the width as needed
+        // directionalLight3.shadow.mapSize.height = 2048;
+        this.scene.add(directionalLight3);
+        directionalLight3.shadow.camera.near = 0.1; // Adjust near plane
+        directionalLight3.shadow.camera.far = 20;
+        directionalLight3.shadow.bias = -0.000222;
+        directionalLight3.shadow.mapSize.width = 1024;
+        directionalLight3.shadow.mapSize.height = 1024;
+        directionalLight3.shadow.blurSamples = 25;
+
+        gui.add(directionalLight3.position, "x", -100, 100).name("Light X");
+        gui.add(directionalLight3.position, "y", -100, 100).name("Light Y");
+        gui.add(directionalLight3.position, "z", -100, 100).name("Light Z");
+
+        gui.add(directionalLight3.shadow, "radius", 0, 25, 1);
+        gui.add(directionalLight3.shadow, "blurSamples", 1, 25, 1);
+
+        gui.add(directionalLight3, "intensity", 0, 2).name("Light Intensity");
+
+        const shadowCameraHelper = new THREE.CameraHelper(
+          directionalLight.shadow.camera
+        );
+        // this.scene.add(shadowCameraHelper);
+
+        const planeGeometry = new THREE.PlaneGeometry(10, 10);
+        planeGeometry.rotateX(-Math.PI / 2);
+        const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.03 });
+
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.position.set(0, 0, 0).normalize();
+        plane.receiveShadow = true;
+        this.scene.add(plane);
+
+        // const lightHelper = new THREE.DirectionalLightHelper(directionalLight3, 5);
+        // this.scene.add(lightHelper);
+
+        const ambiantLight = new THREE.AmbientLight(0xffa500, 1);
+        this.scene.add(ambiantLight);
 
         // use the three.js GLTF loader to add the 3D model to the three.js scene
 
         const loader = new THREE.GLTFLoader();
 
-
         loader.load(
-
-          'guy.glb',
+          "guy.glb",
 
           (gltf) => {
-
             model = gltf.scene;
+            model.scale.set(2, 2, 2);
 
+            model.traverse((child) => {
+              if (child.isMesh) {
+                child.castShadow = true;
+              }
+            });
 
             this.scene.add(model);
+
             mixer = new THREE.AnimationMixer(model);
-            this.animations = gltf.animations;
 
+            animationActions = {
+              appear: mixer.clipAction(gltf.animations[0]),
+              disappear: mixer.clipAction(gltf.animations[1]),
+              idle: mixer.clipAction(gltf.animations[2]),
+              walk: mixer.clipAction(gltf.animations[3]),
+              current: mixer.clipAction(gltf.animations[2]),
+            };
+
+            animationActions.appear.setLoop(THREE.LoopOnce);
+            animationActions.disappear.setLoop(THREE.LoopOnce);
+            animationActions.idle.setLoop(THREE.LoopRepeat);
+            animationActions.walk.setLoop(THREE.LoopRepeat);
+
+            animationActions.appear.clampWhenFinished = true;
+            animationActions.disappear.clampWhenFinished = true;
+
+            let currentAction = animationActions.idle;
+            currentAction.play();
           }
-
         );
 
         this.map = map;
 
-
-
         // use the MapLibre GL JS map canvas for three.js
 
         this.renderer = new THREE.WebGLRenderer({
-
           canvas: map.getCanvas(),
 
           context: gl,
 
-          antialias: true
-
+          antialias: true,
         });
-
-
 
         this.renderer.autoClear = false;
 
+        this.renderer.shadowMap.enabled = true;
       },
 
       render(gl, matrix) {
-
-
-
         const rotationX = new THREE.Matrix4().makeRotationAxis(
-
           new THREE.Vector3(1, 0, 0),
 
           modelTransform.rotateX
-
         );
 
         const rotationY = new THREE.Matrix4().makeRotationAxis(
-
           new THREE.Vector3(0, 1, 0),
 
           modelTransform.rotateY
-
         );
 
         const rotationZ = new THREE.Matrix4().makeRotationAxis(
-
           new THREE.Vector3(0, 0, 1),
 
           modelTransform.rotateZ
-
         );
-
-
 
         const m = new THREE.Matrix4().fromArray(matrix);
 
         const l = new THREE.Matrix4()
 
           .makeTranslation(
-
             modelTransform.translateX,
 
             modelTransform.translateY,
 
             modelTransform.translateZ
-
           )
 
           .scale(
-
             new THREE.Vector3(
-
               modelTransform.scale,
 
               -modelTransform.scale,
 
               modelTransform.scale
-
             )
-
           )
 
           .multiply(rotationX)
@@ -361,30 +402,24 @@
 
           .multiply(rotationZ);
 
-
-
         this.camera.projectionMatrix = m.multiply(l);
+
 
         this.renderer.resetState();
 
         this.renderer.render(this.scene, this.camera);
-
+        this.renderer.shadowMapSoft = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.map.triggerRepaint();
-
-      }
-
+      },
     };
-
-
 
     const clock = new THREE.Clock();
 
     const tick = (time) => {
       // modelTransform.translateX += 0.000000001
       if (mixer) {
-
         mixer.update(clock.getDelta());
-
       }
 
       if (model) {
@@ -395,89 +430,97 @@
       // Call tick again on the next frame
 
       window.requestAnimationFrame(tick);
-
     };
 
     tick();
 
+    function playAnimation(name, duration) {
+      const newAction = animationActions[name];
+      const currentAction = animationActions.current;
 
+      newAction.reset();
+      newAction.play();
 
-    function playAnimation(index, crossFadeDuration) {
-      if (mixer && mixer.clipAction && customLayer.animations && customLayer.animations.length > index) {
-        const animation = mixer.clipAction(customLayer.animations[index]);
-        // animation.setLoop(THREE.LoopOnce);
-        animation.clampWhenFinished = true;
+      newAction.crossFadeFrom(currentAction, duration);
 
-        if (animation) {
-          mixer.stopAllAction();
-
-          const currentAction = mixer.existingAction(customLayer.animations[index]);
-          const nextAction = animation;
-
-          if (currentAction !== nextAction) {
-            // Crossfade to the next animation
-            currentAction.crossFadeTo(nextAction, crossFadeDuration, true);
-            nextAction.setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(crossFadeDuration).play();
-          } else {
-            // If the same animation is requested, just play it
-            nextAction.play();
-          }
-        }
-      }
+      animationActions.current = newAction;
     }
 
-
-
-
-    map.on('style.load', () => {
-
+    map.on("style.load", () => {
       map.addLayer(customLayer);
-
     });
 
     const gui = new dat.GUI();
-    gui.hide()
-    gui.add(modelTransform, 'rotateY', -Math.PI, Math.PI).name('Rotation Y (radians)');
+    gui.close();
+
+    // gui.hide()
+    gui
+      .add(modelTransform, "rotateY", -Math.PI, Math.PI)
+      .name("Rotation Y (radians)");
+
+
+
+
 
     function updateCoordinates() {
-      var input = document.getElementById('coordinatesInput').value;
-      var lines = input.split('\n');
+      var input = document.getElementById("coordinatesInput").value;
+      var lines = input.split("\n");
       var coordinates = [];
 
       lines.forEach(function (line) {
-        var values = line.trim().split(',');
+        var values = line.trim().split(",");
         if (values.length === 2) {
           var x = parseFloat(values[0]);
           var y = parseFloat(values[1]);
           if (!isNaN(x) && !isNaN(y)) {
             coordinates.push({ x: x, y: y });
-          } 3
+          }
         }
       });
 
       console.log(coordinates);
 
+      if (animationActions.current !== animationActions.walk) {
+        playAnimation("appear", 0.1);
+      }
+
+      setTimeout(() => {
+        playAnimation("walk", 0.5);
+      }, 200);
+
+      var totalIterations = coordinates.length;
+      var completedIterations = 0;
+
       coordinates.forEach(function (coordinate, index) {
         setTimeout(() => {
-          let positionToGo = maplibregl.MercatorCoordinate.fromLngLat([coordinate.x, coordinate.y], 0);
+          let positionToGo = maplibregl.MercatorCoordinate.fromLngLat(
+            [coordinate.x, coordinate.y],
+            0
+          );
 
           // Calculate the angle for rotation around Y-axis
-          let oldModelPosAsMercatorCoordinate = ([modelTransform.translateX, modelTransform.translateY]);
-          let newModelPosAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat([coordinate.x, coordinate.y], 0);
-          let angleInRadians = Math.atan2(newModelPosAsMercatorCoordinate.y - oldModelPosAsMercatorCoordinate[1], newModelPosAsMercatorCoordinate.x - oldModelPosAsMercatorCoordinate[0]);
-          let angleInDegrees = angleInRadians * (180 / Math.PI);
-          angleInDegrees = ((angleInDegrees + 180) % 360) - 180;
+          let oldModelPosAsMercatorCoordinate = [
+            modelTransform.translateX,
+            modelTransform.translateY,
+          ];
+          let newModelPosAsMercatorCoordinate =
+            maplibregl.MercatorCoordinate.fromLngLat(
+              [coordinate.x, coordinate.y],
+              0
+            );
+          let angleInRadians = Math.atan2(
+            newModelPosAsMercatorCoordinate.y -
+            oldModelPosAsMercatorCoordinate[1],
+            newModelPosAsMercatorCoordinate.x -
+            oldModelPosAsMercatorCoordinate[0]
+          );
 
-          // modelTransform.rotateY = -angleInRadians - 30
-
-          playAnimation(3, 6)
-
-          gsap.to(modelTransform, {
-            duration: .5,
+          gsap.to(model.rotation, {
+            duration: 0.5,
             precise: {
-              rotateY: -angleInRadians - 30,
-            }
-          })
+              y: -angleInRadians - 30,
+            },
+          });
 
           gsap.to(modelTransform, {
             duration: 2,
@@ -488,17 +531,37 @@
               translateZ: positionToGo.z,
 
               onComplete: function () {
-                console.log('Animation completed for coordinate at index ' + index);
-              }
-            }
+                // Increment the completedIterations count
+                completedIterations++;
+
+                // Check if all iterations are completed
+                if (completedIterations === totalIterations) {
+                  // Call the custom function once all animations are done
+                  customFunction();
+                }
+              },
+            },
           });
         }, index * 2000); // Delay each animation by 2 seconds
       });
+
+
+      function customFunction() {
+        setTimeout(() => {
+          playAnimation("idle", 0.2);
+
+          setTimeout(() => {
+            playAnimation("disappear", 0.5);
+          }, 1000);
+        }, 2000);
+
+      }
+
+
     }
 
 
   </script>
-
 </body>
 
 </html>
