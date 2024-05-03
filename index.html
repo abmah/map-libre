@@ -39,6 +39,7 @@
     }
 
     .coordinate-input {
+      /* display: none; */
       position: absolute;
       top: 10px;
       right: 10px;
@@ -99,14 +100,14 @@
     let model;
     let mixer;
     let animationActions = {};
-
+    let environmentMapTexture;
     const map = (window.map = new maplibregl.Map({
       container: "map",
 
       style:
         "https://api.maptiler.com/maps/basic/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL",
 
-      zoom: 21,
+      zoom: 22,
 
       center: [148.9819, -35.3985],
 
@@ -118,7 +119,7 @@
 
 
     map.on("click", function (e) {
-      // console.log(e.lngLat);
+      console.log(e.lngLat);
 
 
 
@@ -132,10 +133,18 @@
           0
         );
 
+      map.easeTo({
+        center: [e.lngLat.lng, e.lngLat.lat],
+
+        duration: 3000,
+      });
+
+      let deltaX = newModelPosAsMercatorCoordinate.x - oldModelPosAsMercatorCoordinate[0];
+      let deltaY = newModelPosAsMercatorCoordinate.y - oldModelPosAsMercatorCoordinate[1];
+
+
       let angleInRadians = Math.atan2(
-        newModelPosAsMercatorCoordinate.y -
-        oldModelPosAsMercatorCoordinate[1],
-        newModelPosAsMercatorCoordinate.x - oldModelPosAsMercatorCoordinate[0]
+        deltaY, deltaX
       );
 
       // if animation is playing dont repeat it
@@ -144,14 +153,31 @@
         return
       }
 
-      playAnimation("appear", 0.1);
+      if (animationActions.current._clip.name !== 'Idle') {
+        console.log(animationActions.current._clip.name);
+        playAnimation("appear", 0.1);
+      }
+
+
+
       setTimeout(() => {
         playAnimation("walk", 0.5);
       }, 200);
 
-      console.log(angleInRadians);
+      // console.log(angleInRadians);
+
+      let scaleFactor = Math.sqrt(deltaX * deltaX + deltaY * deltaY) * 5000000;
+      console.log(scaleFactor * 500000);
+
+
+      gsap.to(model.scale, {
+        duration: 0.5,
+        x: scaleFactor,
+        y: scaleFactor,
+        z: scaleFactor,
+      });
       gsap.to(model.rotation, {
-        duration: 0.3,
+        duration: 0.5,
         precise: {
           y: -angleInRadians + 1.5,
         },
@@ -175,11 +201,11 @@
       });
 
       setTimeout(() => {
-        playAnimation("idle", 0.2);
+        playAnimation("idle", 0.3);
       }, 3000);
       setTimeout(() => {
         playAnimation("disappear", 0.5);
-      }, 4000);
+      }, 3200);
     });
 
     // parameters to ensure the model is georeferenced correctly on the map
@@ -261,18 +287,18 @@
         // directionalLight3.shadow.mapSize.height = 2048;
         this.scene.add(directionalLight3);
         directionalLight3.shadow.camera.near = 0.1; // Adjust near plane
-        directionalLight3.shadow.camera.far = 20;
+        directionalLight3.shadow.camera.far = 50;
         directionalLight3.shadow.bias = -0.000222;
         directionalLight3.shadow.mapSize.width = 1024;
         directionalLight3.shadow.mapSize.height = 1024;
-        directionalLight3.shadow.blurSamples = 25;
+        directionalLight3.shadow.radius = 10
 
         gui.add(directionalLight3.position, "x", -100, 100).name("Light X");
         gui.add(directionalLight3.position, "y", -100, 100).name("Light Y");
         gui.add(directionalLight3.position, "z", -100, 100).name("Light Z");
 
         gui.add(directionalLight3.shadow, "radius", 0, 25, 1);
-        gui.add(directionalLight3.shadow, "blurSamples", 1, 25, 1);
+
 
         gui.add(directionalLight3, "intensity", 0, 2).name("Light Intensity");
 
@@ -290,11 +316,31 @@
         plane.receiveShadow = true;
         this.scene.add(plane);
 
-        // const lightHelper = new THREE.DirectionalLightHelper(directionalLight3, 5);
-        // this.scene.add(lightHelper);
+
 
         const ambiantLight = new THREE.AmbientLight(0xffa500, 1);
         this.scene.add(ambiantLight);
+
+
+        const cubeTextureLoader = new THREE.CubeTextureLoader();
+
+        environmentMapTexture = cubeTextureLoader.load([
+          "cloud/px.jpeg",
+          "cloud/nx.jpeg",
+          "cloud/py.jpeg",
+          "cloud/ny.jpeg",
+          "cloud/pz.jpeg",
+          "cloud/nz.jpeg",
+        ]);
+
+
+
+
+
+
+
+
+
 
         // use the three.js GLTF loader to add the 3D model to the three.js scene
 
@@ -310,6 +356,28 @@
             model.traverse((child) => {
               if (child.isMesh) {
                 child.castShadow = true;
+                // child.material.envMap = environmentMap;
+                child.material.envMapIntensity = .63;
+                child.material.needsUpdate = true;
+                child.material.envMap = environmentMapTexture;
+                child.material.roughness = 0.15;
+
+                gui.add(child.material, "metalness", 0, 1, 0.01).name("Metalness");
+                gui.add(child.material, "roughness", 0, 1, 0.01).name("Roughness");
+                gui.add(child.material, "envMapIntensity", 0, 1, 0.01).name("EnvMap Intensity");
+
+                var conf = { color: '#9b3b24' };
+                child.material.color.set(conf);
+                gui.addColor(conf, 'color').onChange(function (colorValue) {
+                  child.material.color.set(colorValue);
+                });
+
+                var confTwo = { color: '#3b1f1f' };
+                child.material.emissive.set(confTwo);
+                gui.addColor(confTwo, 'color').onChange(function (colorValue) {
+                  child.material.emissive.set(colorValue);
+                });
+
               }
             });
 
@@ -353,6 +421,9 @@
         this.renderer.autoClear = false;
 
         this.renderer.shadowMap.enabled = true;
+
+
+
       },
 
       render(gl, matrix) {
@@ -411,6 +482,9 @@
         this.renderer.shadowMapSoft = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.map.triggerRepaint();
+
+        // this.scene.background = environmentMapTexture;
+
       },
     };
 
@@ -463,6 +537,7 @@
 
 
     function updateCoordinates() {
+
       var input = document.getElementById("coordinatesInput").value;
       var lines = input.split("\n");
       var coordinates = [];
@@ -492,6 +567,7 @@
       var completedIterations = 0;
 
       coordinates.forEach(function (coordinate, index) {
+
         setTimeout(() => {
           let positionToGo = maplibregl.MercatorCoordinate.fromLngLat(
             [coordinate.x, coordinate.y],
@@ -508,12 +584,29 @@
               [coordinate.x, coordinate.y],
               0
             );
+
+
+          let deltaX = newModelPosAsMercatorCoordinate.x - oldModelPosAsMercatorCoordinate[0];
+          let deltaY = newModelPosAsMercatorCoordinate.y - oldModelPosAsMercatorCoordinate[1];
+
           let angleInRadians = Math.atan2(
-            newModelPosAsMercatorCoordinate.y -
-            oldModelPosAsMercatorCoordinate[1],
-            newModelPosAsMercatorCoordinate.x -
-            oldModelPosAsMercatorCoordinate[0]
+            deltaY, deltaX
           );
+
+          if (index === 0) {
+            model.rotation.y = -angleInRadians - 30;
+          }
+
+          let scaleFactor = Math.sqrt(deltaX * deltaX + deltaY * deltaY) * 5000000;
+          console.log(scaleFactor * 500000);
+
+
+          gsap.to(model.scale, {
+            duration: 0.5,
+            x: scaleFactor,
+            y: scaleFactor,
+            z: scaleFactor,
+          });
 
           gsap.to(model.rotation, {
             duration: 0.5,
